@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+	    <meta charset="utf-8">
+	
+	    <title>US Drone Strikes Heat Map</title>
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	    <meta name="description" content="">
+	    <meta name="author" content=""><!-- styles -->
+	    <link href="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+	    <link href="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-switch/2.0.0/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css">
+	    
+	    <link href="css/dataTables.bootstrap.css" rel="stylesheet" type="text/css">
+	    
+	    <style type="text/css">
+			body {
+				padding-top: 40px; /* 40px to make the container go all the way to the bottom of the topbar */
+			}
+			
+			#map-canvas, #map_canvas {
+				height: 600px;
+			}
+			
+			#listing-div {
+    			background-color: white;
+			    bottom:0;
+			    width: 100%;
+			    z-index: 100;
+			    position: absolute;
+			    display: none;
+			    max-height: 75%;
+            }
+            
+            .has-switch {
+                background-color: white;
+            }
+	    </style>
+	    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false&libraries=visualization" type="text/javascript"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.2/jquery.min.js" type="text/javascript"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.0.3/js/bootstrap.min.js" type="text/javascript"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.4.0/moment.min.js" type="text/javascript"></script>
+		<script src="http://cdn.datatables.net/1.10.0-beta.2/js/jquery.dataTables.js" type="text/javascript"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-switch/2.0.0/js/bootstrap-switch.min.js" type="text/javascript"></script>
+		
+		<script src="js/dataTables.bootstrap.js" type="text/javascript"></script>
+	</head>
+
+	<body>
+	    <div class="navbar navbar-inverse navbar-fixed-top">
+	        <div class="navbar-inner">
+	            <div class="container">
+	                <span class="navbar-brand"><img src="images/drone.svg"> US Drone Strikes Heatmap</span>
+                    <p class="navbar-text pull-right">
+                        <button id="whatisthis" class="btn btn-sm btn-default" data-toggle="modal" data-target="#aboutModal">What is this? <span class="glyphicon glyphicon-question-sign"></span></button>
+                    </p>	                
+                    <p class="navbar-text pull-right">
+                        Show Data: <input id ="showdata" type="checkbox" class="switch-small">
+                    </p>	                
+	            </div>
+	        </div>
+	    </div>
+        <!-- Modal -->
+        <div class="modal fade" id="aboutModal" tabindex="-1" role="dialog" aria-labelledby="About Dronestrik.es" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                        <h4 class="modal-title" id="myModalLabel">What is This?</h4>
+                    </div>
+                    <div class="modal-body">
+                        Dronestrik.es is a map visualization of reported US drone strikes worldwide. The data for this comes from <a href="http://dronestre.am" target="_blank">Dronestre.am</a>, who gets it from <a href="http://www.thebureauinvestigates.com/" target="_blank">The Bureau of Investigative Journalism</a>.
+                    </div>
+                </div>
+            </div>
+        </div>
+	    <div id="map-canvas"></div>
+	    <div class="container" id="listing-div">
+    	    <br>
+    	    <table id="listing" class="table table-striped table-bordered table-hover">
+        	    <thead>
+                    <tr>
+                        <th class="col-md-2">Date</th>
+                        <th class="col-md-1">Location</th>
+                        <th class="col-md-1">Deaths</th>
+                        <th class="col-md-8">Summary</th>
+                    </tr>
+                </thead>
+                <tbody id="datalisting">
+                </tbody>
+    	    </table>
+    	    <p>
+                Data from <a href="http://www.dronestre.am">Dronestre.am</a>, Drone icon by <a href="http://thenounproject.com/iconolater">icono later</a> from <a href="http://thenounproject.com">The Noun Project</a>
+    	    </p>
+	    </div>
+	    <!-- javascript -->
+		
+		<script type="text/javascript">
+		
+	
+	        //
+	        // global vars to store stuff
+	        //
+	        var strikes=[];
+	        var strikeLocs=[];
+	        var url = "http://api.dronestre.am/data";
+	        var bounds = new google.maps.LatLngBounds();
+	        $(document).ready(function () {
+    	        $("#map-canvas").height($(document).height());
+	            //
+	            // pull down list of drone strikes
+	            //
+	            $.ajax({
+	                type: 'GET',
+	                url: url,
+	                async: false,
+	                cache: false,
+	                processData: true,
+	                data: {},
+	                dataType: "jsonp",
+	                success: function (data) { 
+	                    strikes = data.strike;
+	                    $.each(data.strike, function(index, thing) {
+	                        var currentLoc = new google.maps.LatLng(thing.lat, thing.lon);
+	                        strikeLocs.push(currentLoc);
+	                        bounds.extend(currentLoc);
+	                        var strikedate = moment(thing.date).format("MMMM D, YYYY");
+	                        var rowhtml = "<tr id='listing"+index+"'>";
+	                        rowhtml = rowhtml + "<td>"+strikedate+"</td>";
+	                        rowhtml = rowhtml + "<td>"+thing.location+", "+thing.country+"</td>";
+	                        rowhtml = rowhtml + "<td>"+thing.deaths+"</td>";
+	                        rowhtml = rowhtml + "<td><a href='"+thing.bij_link+"' target='_blank'>"+thing.narrative+"</a></td>";
+	                        rowhtml = rowhtml + "</tr>";
+	                        
+	                        $("#datalisting").append(rowhtml);
+	                    });
+	                    initialize();
+	                    $("#listing").dataTable({
+    	                    "order": [[ 0, "desc" ]]
+	                    });
+	                }
+	            });
+	            $("#showdata").bootstrapSwitch();
+	            $("#showdata").on('switch-change', function(event){
+    	            $("#listing-div").slideToggle({ direction: "up" }, 2000)
+	            });        
+	        });
+	
+	        function initialize() {
+	            var mapOptions = {
+    	            scrollwheel: false,
+	                zoomControl: true,
+	                zoomControlOptions: {
+	                  style: google.maps.ZoomControlStyle.SMALL
+	                },
+	                streetViewControl: false ,
+	                mapTypeId: google.maps.MapTypeId.ROADMAP
+	            };
+	            
+	            map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+	            
+	            var pointArray = new google.maps.MVCArray(strikeLocs);
+	            
+	            heatmap = new google.maps.visualization.HeatmapLayer({
+	                data: pointArray,
+	                opacity:1
+	            });
+	            map.fitBounds(bounds);
+	            map.panToBounds(bounds); 
+	            heatmap.setMap(map);
+	        }
+	    </script>
+	</body>
+</html>
